@@ -1,3 +1,5 @@
+#' @import dplyr
+NULL
 
 #' The brtData class
 #' @slot data a list of Matrix
