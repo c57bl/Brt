@@ -7,3 +7,13 @@
 \description{
 the brtvirus class
 }
+\section{Slots}{
+
+\describe{
+\item{\code{bc}}{a data.frame describe bc and counts of each bc}
+
+\item{\code{batch}}{which batch the virus is}
+
+\item{\code{U1000}}{the unique proportion of virus, if 1000 virus particles were sampled}
+}}
+

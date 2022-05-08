@@ -9,5 +9,12 @@ Description: More about what it does (maybe more than one line)
 License: What license is it under?
 Encoding: UTF-8
 LazyData: true
-Imports: ,dplyr,tidyr,ggplot2,purr,Matrix,ShortReadr
 RoxygenNote: 7.1.2
+Collate: 
+    'class.R'
+    'generics.R'
+    'matchpattern.R'
+    'preprocessing.R'
+    'tools.R'
+    'visulize.R'
+    'wrap.R'

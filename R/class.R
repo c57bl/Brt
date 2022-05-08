@@ -1,6 +1,52 @@
 #' @import dplyr
 NULL
+# ================================ brtVirus ====================================
 
+#' the brtvirus class
+#' @slot bc a data.frame describe bc and counts of each bc
+#' @slot batch which batch the virus is
+#' @slot U1000 the unique proportion of virus, if 1000 virus particles were sampled
+setClass("brtVirus",
+         slots = c(bc = "data.frame",
+                   batch = "character",
+                   bc_type = "data.frame",
+                   U1000 = "numeric",
+                   tools = "list"))
+#' brtVirus
+#' construct brtVirus object
+#' @param x a data.frame, with colnames bc describe the sequence of each barcode
+#' and counts describe the counts of each bc
+#' @param batch which batch the virus is
+brtVirus <- function(x,batch){
+  1-(purrr::map(x$counts/sum(x$counts),~.x*(1-(1-.x)^(1000-1))) %>%
+       unlist %>%
+       sum) -> u1000
+  x %>%
+    select(bc,counts) %>%
+    arrange(desc(counts)) -> x
+  purrr::map(seq(0,100000,100),function(n){
+    x %>%
+      mutate(P = counts/sum(counts)) %>%
+      mutate(PN = 1-(1-P)^n) %>%
+      select(PN) %>%
+      sum()
+  }) %>%
+    unlist() -> PN
+  bc_type <- data.frame(S = seq(0,100000,100), PN = PN)
+  new(
+    "brtVirus",
+    bc = x,
+    batch = batch,
+    bc_type = bc_type,
+    U1000 = u1000,
+    tools = list()
+  )
+}
+
+setMethod("show","brtVirus",function(object){
+  cat("virus ",object@batch,":",'\n',"barcodes number: ",nrow(object@bc),'\n',
+      "U1000: ",object@U1000)
+})
 #' The brtData class
 #' @slot data a list of Matrix
 #' @slot focus the default data
@@ -22,6 +68,7 @@ setClass("brtExperiment",
          slots = c(data="brtData",
                    coldata = 'data.frame',
                    rowdata = 'data.frame',
+                   virus = "brtVirus",
                    tools = 'list'),
          prototype = list(data = brtData(),
                           coldata = data.frame(),
@@ -96,53 +143,7 @@ brtStarter <- function(x,seuratobj,sample,region,verbose = TRUE) {
   )
 }
 
-# ================================ brtVirus ====================================
 
-#' the brtvirus class
-#' @slot bc a data.frame describe bc and counts of each bc
-#' @slot batch which batch the virus is
-#' @U1000 the unique proportion of virus, if 1000 virus particles were sampled
-setClass("brtVirus",
-         slots = c(bc = "data.frame",
-                   batch = "character",
-                   bc_type = "data.frame",
-                   U1000 = "numeric",
-                   tools = "list"))
-#' brtVirus
-#' construct brtVirus object
-#' @param x a data.frame, with colnames bc describe the sequence of each barcode
-#' and counts describe the counts of each bc
-#' @param batch which batch the virus is
-brtVirus <- function(x,batch){
-  1-(purrr::map(x$counts/sum(x$counts),~.x*(1-(1-.x)^(1000-1))) %>%
-      unlist %>%
-      sum) -> u1000
-  x %>%
-    select(bc,counts) %>%
-    arrange(desc(counts)) -> x
-  purrr::map(seq(0,100000,100),function(n){
-    x %>%
-      mutate(P = counts/sum(counts)) %>%
-      mutate(PN = 1-(1-P)^n) %>%
-      select(PN) %>%
-      sum()
-  }) %>%
-    unlist() -> PN
-  bc_type <- data.frame(S = seq(0,100000,100), PN = PN)
-  new(
-    "brtVirus",
-    bc = x,
-    batch = batch,
-    bc_type = bc_type,
-    U1000 = u1000,
-    tools = list()
-  )
-}
-
-setMethod("show","brtVirus",function(object){
-  cat("virus ",object@batch,":",'\n',"barcodes number: ",nrow(object@bc),'\n',
-      "U1000: ",object@U1000)
-})
 
 
 
