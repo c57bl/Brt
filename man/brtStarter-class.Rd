@@ -10,7 +10,7 @@ The brtStarter class
 \section{Slots}{
 
 \describe{
-\item{\code{rowdata}}{a data.frame, with conserved colnames name,bc,rvcounts.raw}
+\item{\code{rowdata}}{a data.frame, with conserved colnames bc,rvcounts.raw}
 
 \item{\code{coldata}}{a data.frame, with conserved colnames name,sample,region,cell,
 rvcounts.raw}

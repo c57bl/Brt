@@ -4,12 +4,14 @@
 \alias{brtStarter}
 \title{brtStarter}
 \usage{
-brtStarter(x, seuratobj, sample, region, verbose = TRUE)
+brtStarter(x, seuratobj, virus, sample, region, verbose = TRUE)
 }
 \arguments{
 \item{x}{an tibble returned from brtMatch_10x_bc}
 
 \item{seuratobj}{the seurat object of this sample}
+
+\item{virus}{a brtVirus obj}
 
 \item{sample}{sample name}
 

@@ -1,3 +1,5 @@
+#' @include generics.R
+NULL
 #============================= update ==========================================
 #' left_update
 left_update <- function(x, y, by, treat.na = NA) {
@@ -21,6 +23,43 @@ left_update <- function(x, y, by, treat.na = NA) {
   }
   return(x)
 }
+
+# ================================ subset =====================================
+setMethod("subsetRow",
+          signature(obj = "brtExperiment"),
+function(obj, subset, ...) {
+  x <- obj@rowdata
+  r <- if (missing(subset))
+    rep_len(TRUE, nrow(x))
+  else {
+    e <- substitute(subset)
+    r <- eval(e, x, parent.frame())
+    if (!is.logical(r))
+      stop("'subset' must be logical")
+    r & !is.na(r)
+  }
+  obj@data@data <- purrr::map(obj@data@data,~.x[r,])
+  obj@rowdata <- obj@rowdata[r,]
+  obj
+})
+
+setMethod("subsetCol",
+          signature(obj = "brtExperiment"),
+function(obj, subset, ...) {
+  x <- obj@coldata
+  r <- if (missing(subset))
+    rep_len(TRUE, nrow(x))
+  else {
+    e <- substitute(subset)
+    r <- eval(e, x, parent.frame())
+    if (!is.logical(r))
+      stop("'subset' must be logical")
+    r & !is.na(r)
+  }
+  obj@data@data <- purrr::map(obj@data@data,  ~ .x[, r])
+  obj@coldata <- obj@coldata[r,]
+  obj
+})
 
 # ======================== Matrix =============================================
 .sortMatrix <- function(x, by) {
