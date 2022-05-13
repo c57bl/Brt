@@ -34,10 +34,13 @@ getNoiseBc <- function(obj,background = NULL,threshold = 3,signal) {
   NN.data <- obj@data@data$counts[, NN.idx]
   NN.data %>%
     Matrix::rowSums() -> bc.nn
+  # normalize the cell number, then make counts >1 or == 0
+  bc.nn <- bc.nn / ncol(NN.data) * nrow(obj@coldata)
   N.idx <- which(obj@coldata$ident == signal)
   N.data <- obj@data@data$counts[, N.idx]
   N.data %>%
     Matrix::rowSums() -> bc.n
+  bc.n <- bc.n / ncol(N.data) * nrow(obj@coldata)
   cutoff <- median(bc.nn) + threshold * IQR(bc.nn)
   bc.n <- data.frame(bc = names(bc.n), signal = bc.n)
   bc.nn <- data.frame(bc = names(bc.nn), Background = bc.nn)

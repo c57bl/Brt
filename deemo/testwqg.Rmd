@@ -1,0 +1,114 @@
+---
+title: "test"
+output: html_notebook
+---
+# loading required data
+```{r}
+dpca1.bcs <- read.csv(here::here("testdata/dpca1_bcs.csv"))
+g <- read.csv(here::here("testdata/dpca1_g.csv"))
+aca3.bcs <- read.csv(here::here("testdata/aca3_bcs.csv"))
+virus <- readRDS(here::here("testdata/b5virus.rds"))
+dpca1seurat <- readRDS('D:/BRT/BRT/Data/xc1/DPCA1L1.rds')
+```
+**be careful**, the orig.ident of seurat must be *sample_region*
+```{r}
+dpca1seurat@meta.data$orig.ident <- "wqg1_dpca1"
+```
+
+the column of the output of match_pattern is *bc, counts*
+```{r}
+head(g)
+# dpca1@coldata <- left_update(dpca1@coldata)
+```
+to update the counts, we should rename the counts. 
+**tva and g** is necessary for analysis, for g-tva linked plasmids, we should 
+replicate the result of g and change the colname
+```{r}
+g <- rename(g,g = counts) %>%
+  select(cell,g)
+head(g)
+```
+```{r}
+tva <- rename(g,tva = g)
+head(tva)
+```
+# construct obj
+Now , we can construct a brtstaretr obj
+```{r}
+dpca1 <- brtStarter(dpca1.bcs,seuratobj = dpca1seurat,virus = virus,sample = "wqg1",region = "dpca1")
+```
+and update the tva and g counts into the coldata
+```{r}
+dpca1@coldata <- left_update(dpca1@coldata,g,by = "cell",treat.na = 0)
+dpca1@coldata <- left_update(dpca1@coldata,tva,by = "cell",treat.na = 0)
+```
+# noise cutoff
+First, we can preview the counts of rvcounts and g across each clusters
+The **counts of g in ODs** seems abnormal, we'd better avoid ODs while calculating the noise of g
+```{r}
+brtVlnPlot(dpca1,feature = "rvcounts.raw")
+brtVlnPlot(dpca1,feature = "g")
+```
+Next, we should set a threshold of barcodes. If we level background as NULL,
+then, all non-neurons clusters are treated as background, and cluster:Neurons
+is singnal. If the cluster name in your hand of Neurons is not Neurons, such as neurons, just change the parameter *signal* to neurons.
+Barcodes with counts below median + threshold * IQR of background counts is noise.
+```{r}
+brtPlotNoise(dpca1,"bc",background = NULL, threshold = 3)
+```
+**set noise bc with this function**
+```{r}
+dpca1 <- brtSetNoiseBc(dpca1,threshold = 3)
+```
+
+# set cell state and unique bc 
+The unique probability of each barcode-carrying virus could be estimated according to the umi counts. For example, barcode *bcA* with P = 0.95 means that while injecting virus, the probablity that only one virus carried *bcA* is 0.95. 
+```{r}
+dpca1 <- brtSetUniqueVirus(dpca1,P = 0.99)
+```
+Next, we should set the state of cells (input/starter/naive)
+To do this, we should first estimated the threshold, as we disscused above, we'd better avoid ODs while calculating the threshold of g
+```{r}
+brtPlotNoise(dpca1,feature = "g",background = setdiff(unique(dpca1@coldata$ident),"ODs"),threshold = 3)
+```
+```{r}
+brtPlotNoise(dpca1,feature = "rvcounts.raw",threshold = 3)
+```
+Now, we know the positive threshold of g/tva, but the negative threshold of tva/g is still unknown. This can be estimated by the probability of barcode positive cells(bcp). If under a threshold, bcp does't increase with  the counts of tva, then this threshold is appropriate.
+In this data, bcp is stable... just set the negative threshold as 42...
+```{r}
+brtPlotInfection(dpca1,tva.c = 42,rv.c = 14)
+```
+**set cell state here**
+```{r}
+dpca1 <- brtSetCellState(dpca1,starter = rvcounts.raw > 14 & g >42,input = rvcounts.raw > 14 & g < 42)
+```
+The last part is select unique barcode. 
+
+There are two standards for unique barcode. 
+
+1. for bc i,across cell 1-j, max(bc i) / sum(bc i) > P (default 0.8) 
+
+These selected bcs are dbcs(dominant bcs) 
+
+2. for dbc i, exist a cell j , dbc i / sum(cell j) > U (default 0.3) 
+
+These selected dbcs are ubcs (unique bcs)
+```{r}
+dpca1 <- brtSetUniqueBc(dpca1)
+```
+# construct unity
+I do not have a seurat obj of aca3, so I change the region name of dpcall, and disguise it as aca3 obj
+```{r}
+aca3 <- dpca1
+aca3@coldata$region <-"aca3"
+aca3@coldata <- select(aca3@coldata,-rvcounts.unique,)
+```
+
+```{r}
+unity <- brtUnity(list(dpca1),list(aca3))
+unity
+```
+
+
+

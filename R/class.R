@@ -224,7 +224,7 @@ brtUnity <- function(starter = list, sc = NULL, bulk = NULL){
 }
 
 setMethod("show","brtUnity",function(object){
-  cat("a brtUnity obj with ", length(starter)," samples \n\n")
+  cat("a brtUnity obj with ", length(object@sc)," samples","\n\n")
   cat("single cell connections: \n")
   show(object@sc)
   cat("bulk connections: \n")

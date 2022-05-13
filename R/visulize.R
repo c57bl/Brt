@@ -45,6 +45,7 @@ getNoiseFeature <- function(obj,feature,background = NULL, threshold = 3,
       rename(source = ident,counts= feature) %>%
       filter(source %in% c(signal,background)) %>%
       mutate(source = as.character(source))
+    data$splitsource <- data$source
     data$source[data$source != signal] <- "Background"
     counts.n <- subset(data, source == signal)$counts
     counts.nn <- subset(data, source == "Background")$counts
@@ -67,15 +68,21 @@ getNoiseFeature <- function(obj,feature,background = NULL, threshold = 3,
 brtPlotInfection <- function(obj,tva.c,rv.c){
   result <- brtGetInfection(obj,tva.c,rv.c)
   # draw bc+
-  data.frame(p = c(result$record$RP,result$RPT),
-             counts = c(0:tva.c,paste0(tva.c, "+"))) %>%
+  p <- c(result$record$RP,result$RPT)
+  counts <- c(0:tva.c,paste0(tva.c, "+"))
+  counts <- factor(counts,levels = counts)
+  data.frame(p = p,
+             counts = counts) %>%
     ggplot(aes(counts,p)) +
     geom_col() +
     theme_light() +
     ggtitle("bc+ proportion") -> p1
   # draw estimated
-  data.frame(p = c(result$record$IP[-1],result$IE),
-             counts = c(1:tva.c,paste0(tva.c, "+"))) %>%
+  counts <- c(1:tva.c,paste0(tva.c, "+"))
+  counts <- factor(counts, levels = counts)
+  p <- c(result$record$IP[-1],result$IE)
+  data.frame(p = p,
+             counts = counts) %>%
     ggplot(aes(counts,p)) +
     geom_col() +
     theme_light() +
@@ -119,3 +126,71 @@ brtPlotUniqueBc <- function(obj,nrow = 2){
     theme_classic() -> p2
   cowplot::plot_grid(p1,p2, nrow = nrow)
 }
+
+# vlnplot
+setMethod("brtVlnPlot", "brtStarter", function(obj,
+                                               feature,
+                                               logscale,
+                                               title,
+                                               size = 0.1 ,
+                                               alpha = 0.5,
+                                               color = FALSE,
+                                               ...) {
+  coldata <- obj@coldata
+  # select feature
+  if (class(feature) == 'character') {
+    colordata = coldata[[feature]]
+  } else
+    colordata <- feature
+  coldata %>%
+    select(ident, feature) %>%
+    rename(data = feature) -> coldata
+  # title
+  if (is.na(title) & class(feature) == 'character')
+    mytitle = feature
+  else if (is.na(title) & !class(feature) == 'character')
+    mytitle = NULL
+  else
+    mytitle = title
+  if (logscale) coldata$data[coldata$data == 0] <- 0.5
+  brtVlnPlot(
+    obj = coldata,
+    logscale = logscale,
+    title = mytitle,
+    size = size,
+    alpha = alpha,
+    color = color
+  )
+})
+
+setMethod("brtVlnPlot", "data.frame", function(obj,
+                                               feature,
+                                               logscale,
+                                               title = NULL,
+                                               size = 0.1 ,
+                                               alpha = 0.5,
+                                               color = color,
+                                               ...) {
+  coldata <- obj
+  coldata$ax1 <- coldata$ident
+  coldata$ax2 <- coldata$data
+  if (color) plot_map <- ggplot(data = coldata, aes(ax1, ax2,fill = ident))
+  else plot_map <- ggplot(data = coldata, aes(ax1, ax2))
+  plot_vln <- geom_violin()
+  plot_jitter <- geom_jitter(size = size, alpha = alpha,color = "black")
+  plot_log <- scale_y_log10()
+  plot_title <- labs(title = title)
+  plot_theme <- theme_classic() +
+    theme(axis.text.x = element_text(angle = 45),legend.position = "none")
+  plotfinal <- plot_map +
+    plot_vln +
+    plot_title +
+    plot_jitter +
+    xlab(NULL) +
+    ylab("counts") +
+    plot_theme
+
+  if (logscale)
+    plotfinal <- plotfinal + plot_log
+  return(plotfinal)
+})
