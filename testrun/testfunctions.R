@@ -1,0 +1,20 @@
+counts <- read.csv("testdata/bc_10x_counts.csv")
+tva <- read.csv("testdata/brt8_tva.csv")
+g <- read.csv("testdata/brt8_g.csv")
+virus <- readRDS("testdata/b5virus.rds")
+seurat <- readRDS("../data/brt8/objs/brt8seurat.rds")
+starter <- brtStarter(counts,seurat,virus,"test1","foo")
+starter@coldata <- left_update(starter@coldata,tva,"cell",0)
+starter@coldata <- left_update(starter@coldata,g,"cell",0)
+#preprocessing
+p1 <- brtPlotNoise(starter,"bc",threshold = 5)
+starter <- brtSetNoiseBc(starter,threshold = 5)
+p2 <- brtPlotNoise(starter,"tva")
+p3 <-  brtPlotNoise(starter,"g")
+starter <- brtSetUniqueVirus(starter,P = 0.97)
+starter <- brtSetCellState(starter,starter = tva>4 & g>4 &rvcounts.raw > 13,
+                           input = tva <2 & rvcounts.raw > 13)
+starter <- brtSetUniqueBc(starter)
+# read test input data
+inputer <- readRDS("testdata/inputer.rds")
+unity <- brtUnity(list(starter),list(inputer))
