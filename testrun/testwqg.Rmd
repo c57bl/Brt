@@ -106,7 +106,7 @@ aca3@coldata <- select(aca3@coldata,-rvcounts.unique,)
 ```
 
 ```{r}
-unity <- brtUnity(list(dpca1),list(aca3))
+unity <- brtUnity(starter = list(dpca1),sc = list(aca3))
 unity
 ```
 

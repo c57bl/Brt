@@ -177,7 +177,7 @@ brtUnity <- function(starter = list, sc = NULL, bulk = NULL){
   names(starter) <- samples
   # merge starter
   purrr::map2(starter,bcmaps,function(x,y){
-    input.idx <- which(x@coldata$state == "input")
+    input.idx <- which(x@coldata$state == "input" & x@coldata$rvcounts.unique > 0)
     bc.idx <- which(x@rowdata$unique.bc == TRUE)
     data.sub <- purrr::map(x@data@data,~.x[bc.idx,input.idx])
     counts.sub <- data.sub$counts
@@ -259,9 +259,10 @@ newObjFromMerged <- function(counts,obj){
   counts <- counts[,which(colSums(counts) >0)]
   data <- brtData(counts = counts)
   rowname.idx <- match(rownames(counts), obj@coldata$name)
-  rowdata <- obj@coldata[rowname.idx,]
+  rowdata <- obj@coldata[rowname.idx[which(!is.na(rowname.idx))],]
   colname.idx <- match(colnames(counts), obj@coldata$name)
-  coldata <- obj@coldata[colname.idx,]
+  coldata <- obj@coldata[colname.idx[which(!is.na(colname.idx))],]
+  coldata$rvcounts.unique <- colSums(counts)
   new("brtExperiment",
       data = data,
       rowdata = rowdata,
