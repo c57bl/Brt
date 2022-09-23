@@ -240,10 +240,15 @@ brtMatch_10X_target <- function(path,pattern,quality_cutoff=25,
                                        subject = x@sread,
                                        fixed = "subject",
                                        max.mismatch = m)
+  read.width <- max(x@sread@ranges@width)
   idx <- matched@ends %>%
-         purrr::map(~length(.x)==1) %>%
-         unlist()%>%
-         which()
+    purrr::map(function(x) {
+      if (is.null(x))
+        FALSE
+      else x[1] > 0 & x[1] < read.width & length(x) == 1
+    }) %>%
+    unlist()%>%
+    which()
   x.read <- x@sread[idx][matched[idx]]
   x.qu <- x@quality[idx][matched[idx]]
   return(list(reads = x.read,quality = x.qu,idx = idx))
