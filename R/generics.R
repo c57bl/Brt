@@ -19,3 +19,11 @@ setGeneric('brtVlnPlot',
                     title = NA,
                     ...)
              standardGeneric("brtVlnPlot"))
+#' brtMergeRegion
+#' @param reference a data.frame describe the previous region name
+#' (colname old_name), and the corresponding new region name(colname new_name).
+#' @export
+setGeneric("brtMergeRegion",
+           function(obj,
+                    reference)
+             standardGeneric("brtMergeRegion"))

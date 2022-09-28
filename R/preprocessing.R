@@ -262,4 +262,3 @@ brtSetCellState <- function(obj,starter,input){
   obj
 }
 
-# ========================== inputome =========================================

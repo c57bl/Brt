@@ -268,3 +268,84 @@ newObjFromMerged <- function(counts,obj){
       rowdata = rowdata,
       coldata = coldata)
 }
+
+# =============================== brtInputome ==================================
+#' The inputData class
+#' @description The inputData class stores the data and describe the column feature
+#' of the data
+#' @slot data a brtData obj, stores the raw counts,normalized ... matrix
+#' @slot coldata usually describe the region, rvcounts,and spk counts of each
+#' region. brtInputome obj usually be a part of unity obj, the rowdata has
+#' been described in the parent object.
+setClass("inputData",
+         contains = "brtData",
+         slots = c(coldata = "data.frame"))
+inputData <- function(counts = NA,coldata = NA) {
+  new("inputData",
+      data = list(counts = Matrix::Matrix(counts)),
+      focus = "counts",
+      coldata = coldata)
+}
+#' The bcInputome class
+#' @slot rowdata a data.frame, with conserved colnames bc,rvcounts.raw
+#' @slot assays a list contains inputData objects
+#' @slot sample a character describe the name of sample
+#' @slot active_assay a character describe which assay should be used in the
+#' downstream analysis
+setClass("bcInputome",
+         slots = c(rowdata = "data.frame",
+                   assays = "list",
+                   sample = "character",
+                   active_assay = "character"))
+#' The scInputome class
+#' @description a part of brtunity obj, the rowdata is shared with parent
+#' rowdata
+setClass("scInputome",
+         contains = "bcInputome")
+bcInputome <-
+  function(tbs,
+           sample,
+           bc,
+           spk = NULL) {
+    message("start construct matrix...")
+    tb.bc <- tbs[[bc]]
+    tb.bc %>%
+      arrange(id) %>%
+      tidyr::spread(id, counts) -> x
+    x.matrix <- Matrix::Matrix(as.matrix(x[,-1]),
+                               sparse = TRUE)
+    x.matrix[is.na(x.matrix)] <- 0
+    rownames(x.matrix) <-  x$bc
+    # sort matrix by rowsum
+    x <- .sortMatrix(x.matrix, 'row')
+    message("build brtInputome obj...")
+    x.rowdata <- data.frame(bc = rownames(x),
+                            rvcounts.raw = Matrix::rowSums(x))
+    # raw assay
+    x.coldata <- data.frame(id = colnames(x),
+                            rvcounts.raw = Matrix::colSums(x))
+    if (!is.null(spk)) {
+      tb.spk <- tbs[[spk]]
+      tb.spk <- rename(tb.spk, spk = counts)
+      x.coldata <- left_join(x.coldata, tb.spk, by = "id")
+    }
+    assay.raw <- inputData(x,x.coldata)
+    y <-  new(
+      "bcInputome",
+      rowdata = x.rowdata,
+      assays = list(raw = assay.raw),
+      sample = sample,
+      active_assay = "raw"
+    )
+    message("done")
+    return(y)
+  }
+setMethod("show","bcInputome",function(object){
+  cat("an inputome obj with ", nrow(object@rowdata)," features","\n\n")
+  purrr::walk2(object@assays,names(object@assays),function(x,y){
+    cat("assay :",y,"\n",
+        nrow(x@coldata)," samples","\n",
+        "data focus: ",x@focus,"\n")
+  })
+  cat("active assay: ", object@active_assay)
+})
