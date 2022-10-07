@@ -4,7 +4,7 @@
 \alias{brtMergeRegion}
 \title{brtMergeRegion}
 \usage{
-brtMergeRegion(obj, reference)
+brtMergeRegion(obj, target, focus = "data")
 }
 \arguments{
 \item{reference}{a data.frame describe the previous region name

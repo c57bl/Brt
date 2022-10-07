@@ -42,7 +42,6 @@ brtVirus <- function(x,batch){
     tools = list()
   )
 }
-
 setMethod("show","brtVirus",function(object){
   cat("virus ",object@batch,":",'\n',"barcodes number: ",nrow(object@bc),'\n',
       "U1000: ",object@U1000)
@@ -87,6 +86,12 @@ setClass("brtStarter",
          contains = "brtExperiment",
          slots = c(virus = "brtVirus"))
 
+brtSetIdent <- function(obj,ident) {
+  if (! ident %in% colnames(obj@coldata))
+    stop("can not find this ident in coldata")
+  obj@coldata$active.ident <- obj@coldata[[ident]]
+  obj
+}
 #' brtStarter
 #' @param x an tibble returned from brtMatch_10x_bc
 #' @param seuratobj the seurat object of this sample
@@ -102,6 +107,7 @@ brtStarter <- function(x,seuratobj,virus,sample,region,verbose = TRUE) {
   x <- select(x,cell,bc,counts)
   # construct sparse matrix
   x.spread <- tidyr::spread(x, cell, counts)
+  x.spread$bc <- paste0(sample,"_",x.spread$bc)
   x.matrix <- Matrix::Matrix(as.matrix(x.spread[, -1]),
                              sparse = TRUE)
   x.matrix[is.na(x.matrix)] <- 0
@@ -111,8 +117,7 @@ brtStarter <- function(x,seuratobj,virus,sample,region,verbose = TRUE) {
   x.matrix <- .sortMatrix(x.matrix, 'row')
   # initialize coldata and rowdata
   cell <- colnames(x.matrix)
-  x.coldata <-
-    data.frame(
+  x.coldata <- data.frame(
       name = paste(sample,region,cell,sep = "_"),
       sample = sample,
       region = region,
@@ -143,7 +148,95 @@ brtStarter <- function(x,seuratobj,virus,sample,region,verbose = TRUE) {
   )
 }
 
+# =============================== brtInputome ==================================
+#' The inputData class
+#' @description The inputData class stores the data and describe the column feature
+#' of the data
+#' @slot data a brtData obj, stores the raw counts,normalized ... matrix
+#' @slot coldata usually describe the region, rvcounts,and spk counts of each
+#' region. brtInputome obj usually be a part of unity obj, the rowdata has
+#' been described in the parent object.
+setClass("inputData",
+         contains = "brtData",
+         slots = c(coldata = "data.frame"))
+inputData <- function(counts = NA,coldata = NA,focus = "counts") {
+  new("inputData",
+      data = list(counts = Matrix::Matrix(counts)),
+      focus = focus,
+      coldata = coldata)
+}
+#' The bcInputome class
+#' @slot rowdata a data.frame, with conserved colnames bc,rvcounts.raw
+#' @slot assays a list contains inputData objects
+#' @slot sample a character describe the name of sample
+#' @slot active_assay a character describe which assay should be used in the
+#' downstream analysis
+setClass("bcInputome",
+         slots = c(rowdata = "data.frame",
+                   assays = "list",
+                   sample = "character",
+                   active_assay = "character"))
+bcInputome <-
+  function(tbs,
+           sample,
+           bc,
+           spk = NULL) {
+    message("start construct matrix...")
+    tb.bc <- tbs[[bc]]
+    tb.bc %>%
+      arrange(id) %>%
+      tidyr::spread(id, counts) -> x
+    x$bc <- paste0(sample,"_",x$bc)
+    x.matrix <- Matrix::Matrix(as.matrix(x[,-1]),
+                               sparse = TRUE)
+    x.matrix[is.na(x.matrix)] <- 0
+    rownames(x.matrix) <-  x$bc
+    # sort matrix by rowsum
+    x <- .sortMatrix(x.matrix, 'row')
+    message("build brtInputome obj...")
+    x.rowdata <- data.frame(bc = rownames(x),
+                            rvcounts.raw = Matrix::rowSums(x))
+    # raw assay
+    x.coldata <- data.frame(id = colnames(x),
+                            rvcounts.raw = Matrix::colSums(x))
+    if (!is.null(spk)) {
+      tb.spk <- tbs[[spk]]
+      tb.spk <- rename(tb.spk, spk = counts)
+      x.coldata <- left_join(x.coldata, tb.spk, by = "id")
+    }
+    assay.raw <- inputData(x,x.coldata)
+    y <-  new(
+      "bcInputome",
+      rowdata = x.rowdata,
+      assays = list(raw = assay.raw),
+      sample = sample,
+      active_assay = "raw"
+    )
+    message("done")
+    return(y)
+  }
+setMethod("show","bcInputome",function(object){
+  cat("an inputome obj with ", nrow(object@rowdata)," features","\n\n")
+  purrr::walk2(object@assays,names(object@assays),function(x,y){
+    cat("assay :",y,"\n",
+        nrow(x@coldata)," samples","\n",
+        "data focus: ",x@focus,"\n")
+  })
+  cat("active assay: ", object@active_assay)
+})
+#' The scInputome class
+#' @description a part of brtunity obj, the rowdata is shared with parent
+#' rowdata
+setClass("scInputome",
+         contains = "bcInputome")
+scInputome <- function(data,rowdata,coldata){
+  idx.row <- match(rownames(data),rowdata$name)
+  rowdata<- rowdata[idx.row,]
+  new("scInputome",
+      rowdata = rowdata,
+      assays = list(subregion = inputData(data,coldata)))
 
+}
 # ============================ brtUnity ========================================
 #' The brtUnity class
 #' @slot metadata a list contains coldata of all the coldatas of input objs.
@@ -154,12 +247,12 @@ brtStarter <- function(x,seuratobj,virus,sample,region,verbose = TRUE) {
 setClass("brtUnity",
          slots = c(metadata = "list",
                    sc = 'list',
-                   bulk = 'brtExperiment',
+                   bulk = 'scInputome',
                    tools = 'list'))
 #' brtUnity
 #' @param starter a list of starter objs
 #' @param sc a list of brtStarter objs records single cell long-range inputs
-#' @param bulk a list of brtInputome objs records long-range bulk inputs
+#' @param bulk a list of scInputome objs records long-range bulk inputs
 #' @return  a brtUnity obj
 #' @seealso [brtUnity-class]
 #' @importFrom Matrix Matrix
@@ -175,12 +268,14 @@ brtUnity <- function(starter = list, sc = NULL, bulk = NULL){
   })
   names(bcmaps) <- samples
   names(starter) <- samples
+  metadata <- purrr::map(starter,~.x@coldata)
   # merge starter
   purrr::map2(starter,bcmaps,function(x,y){
-    input.idx <- which(x@coldata$state == "input" & x@coldata$rvcounts.unique > 0)
-    bc.idx <- which(x@rowdata$unique.bc == TRUE)
-    data.sub <- purrr::map(x@data@data,~.x[bc.idx,input.idx])
-    counts.sub <- data.sub$counts
+    counts <- x@data@data$counts
+    input.idx <- which(x@coldata$state == "input")
+    input.counts <- rowSums(counts[,input.idx])
+    bc.idx <- which(x@rowdata$unique.bc == TRUE &input.counts > 0)
+    counts.sub <- counts[bc.idx,input.idx]
     counts.merge <- mergeBc(counts.sub,y)
     newObjFromMerged(counts.merge,x)
   }) -> scobjs
@@ -215,11 +310,50 @@ brtUnity <- function(starter = list, sc = NULL, bulk = NULL){
       x
     })
   }
-  if (is.null(bulk)) bulkobjs <- new("brtExperiment")
-  # record all the coldata
-  metadata <- purrr::map(list(starter = starter,sc = sc,bulk = bulk),function(x){
-    purrr::map(x,~.x@coldata)
+  if (! is.null(bulk)) {
+    samples <- unlist(purrr::map(bulk,~.x@sample))
+    idxs <- purrr::map(bulk,function(x){
+      y.coldata <- x@assays$raw@coldata
+      idx <- match(brtParams$regions$subregion,y.coldata$subregion)
     })
+    data <- purrr::pmap(list(bulk, bcmaps,idxs), function(x,y,z) {
+      # merge counts_adj
+      if (!"data" %in% names(x@assays$raw@data))
+        stop(x@sample,
+             ": please estimate and remove noise before run brtUnity")
+      data <- x@assays$raw@data$data
+      data.merge <- mergeBc(data, y)
+      data.merge <- data.merge[,z]
+      idx.remove <- which(rowSums(data.merge) == 0)
+      message(x@sample," remove ", length(idx.remove),
+              " cells with 0 bulk connection counts")
+      data.merge <- data.merge[-idx.remove, ]
+      colnames(data.merge) <- x@assays$raw@coldata$subregion[z]
+      data.merge
+    })
+    rowdatas <- purrr::map2(starter,data,function(x,y){
+      idx <- match(rownames(y),x@coldata$name)
+      y.rowdata <- x@coldata[idx,]
+      y.rowdata <- select(y.rowdata,name,cell)
+    }) %>%
+      do.call(rbind,.)
+    data <- do.call(rbind,data)
+    coldata <- data.frame(subregion = colnames(data),
+                          rvcounts.adj = colSums(data))
+    assays.raw <- new("inputData",
+                  coldata = coldata,
+                  data = list(data = data),
+                  focus = "data")
+    bulkobjs <- new(
+      "scInputome",
+      rowdata = rowdatas,
+      assays = list(raw = assays.raw),
+      sample = samples,
+      active_assay = "raw"
+    )
+  } else {
+    bulkobjs <- new("scInputome")
+  }
   new("brtUnity",metadata = metadata,sc = scobjs, bulk = bulkobjs)
 }
 
@@ -269,83 +403,4 @@ newObjFromMerged <- function(counts,obj){
       coldata = coldata)
 }
 
-# =============================== brtInputome ==================================
-#' The inputData class
-#' @description The inputData class stores the data and describe the column feature
-#' of the data
-#' @slot data a brtData obj, stores the raw counts,normalized ... matrix
-#' @slot coldata usually describe the region, rvcounts,and spk counts of each
-#' region. brtInputome obj usually be a part of unity obj, the rowdata has
-#' been described in the parent object.
-setClass("inputData",
-         contains = "brtData",
-         slots = c(coldata = "data.frame"))
-inputData <- function(counts = NA,coldata = NA) {
-  new("inputData",
-      data = list(counts = Matrix::Matrix(counts)),
-      focus = "counts",
-      coldata = coldata)
-}
-#' The bcInputome class
-#' @slot rowdata a data.frame, with conserved colnames bc,rvcounts.raw
-#' @slot assays a list contains inputData objects
-#' @slot sample a character describe the name of sample
-#' @slot active_assay a character describe which assay should be used in the
-#' downstream analysis
-setClass("bcInputome",
-         slots = c(rowdata = "data.frame",
-                   assays = "list",
-                   sample = "character",
-                   active_assay = "character"))
-#' The scInputome class
-#' @description a part of brtunity obj, the rowdata is shared with parent
-#' rowdata
-setClass("scInputome",
-         contains = "bcInputome")
-bcInputome <-
-  function(tbs,
-           sample,
-           bc,
-           spk = NULL) {
-    message("start construct matrix...")
-    tb.bc <- tbs[[bc]]
-    tb.bc %>%
-      arrange(id) %>%
-      tidyr::spread(id, counts) -> x
-    x.matrix <- Matrix::Matrix(as.matrix(x[,-1]),
-                               sparse = TRUE)
-    x.matrix[is.na(x.matrix)] <- 0
-    rownames(x.matrix) <-  x$bc
-    # sort matrix by rowsum
-    x <- .sortMatrix(x.matrix, 'row')
-    message("build brtInputome obj...")
-    x.rowdata <- data.frame(bc = rownames(x),
-                            rvcounts.raw = Matrix::rowSums(x))
-    # raw assay
-    x.coldata <- data.frame(id = colnames(x),
-                            rvcounts.raw = Matrix::colSums(x))
-    if (!is.null(spk)) {
-      tb.spk <- tbs[[spk]]
-      tb.spk <- rename(tb.spk, spk = counts)
-      x.coldata <- left_join(x.coldata, tb.spk, by = "id")
-    }
-    assay.raw <- inputData(x,x.coldata)
-    y <-  new(
-      "bcInputome",
-      rowdata = x.rowdata,
-      assays = list(raw = assay.raw),
-      sample = sample,
-      active_assay = "raw"
-    )
-    message("done")
-    return(y)
-  }
-setMethod("show","bcInputome",function(object){
-  cat("an inputome obj with ", nrow(object@rowdata)," features","\n\n")
-  purrr::walk2(object@assays,names(object@assays),function(x,y){
-    cat("assay :",y,"\n",
-        nrow(x@coldata)," samples","\n",
-        "data focus: ",x@focus,"\n")
-  })
-  cat("active assay: ", object@active_assay)
-})
+

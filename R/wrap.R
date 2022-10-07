@@ -24,12 +24,10 @@ brtSeuratWraper <- function(seuratobj, reduction_method = 'umap') {
   ident <- data.frame(seuratobj@active.ident)
   ident$cell <- substr(rownames(ident), 1, 16)
   ident <- rename(ident, ident = seuratobj.active.ident)
-  metadata <- seuratobj@meta.data[, 1:4]
+  metadata <- seuratobj@meta.data
   metadata$cell <- substr(rownames(metadata), 1, 16)
   metadata <- left_join(metadata, ident, by = 'cell')
   metadata <- left_join(metadata, reduction, by = 'cell')
-  metadata <- cbind(metadata[, 5], metadata[,-5])
-  colnames(metadata)[1] <- 'cell'
   return(metadata)
 }
 

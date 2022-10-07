@@ -11,7 +11,7 @@ brtUnity(starter = list, sc = NULL, bulk = NULL)
 
 \item{sc}{a list of brtStarter objs records single cell long-range inputs}
 
-\item{bulk}{a list of brtInputome objs records long-range bulk inputs}
+\item{bulk}{a list of scInputome objs records long-range bulk inputs}
 }
 \value{
 a brtUnity obj

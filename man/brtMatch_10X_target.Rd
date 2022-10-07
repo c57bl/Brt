@@ -13,7 +13,8 @@ brtMatch_10X_target(
   blockSize = 2e+06,
   pattern_max_mismatch = 0,
   cell_reference = NULL,
-  total = NULL
+  total = NULL,
+  return_raw = FALSE
 )
 }
 \description{

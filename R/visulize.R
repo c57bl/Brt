@@ -1,6 +1,7 @@
+#' @import ComplexHeatmap ggplot2
+NULL
 #' brtPlotNoise
-#' @import ggplot2
-#' @param obj an brtstarter object, the idents of coldata should contain Neurons
+#' @param obj an brtstarter object, the active.idents of coldata should contain Neurons
 #' and at least one non-neuronal ident.
 #' @param feature bc or a name of numeric column of coldata. bc will override bc
 #' column if bc column exist.
@@ -39,10 +40,10 @@ getNoiseFeature <- function(obj,feature,background = NULL, threshold = 3,
                             signal = "Neurons"){
   if (feature %in% colnames(obj@coldata)) {
     if (is.null(background)){
-      background <- setdiff(unique(obj@coldata$ident),signal)
+      background <- setdiff(unique(obj@coldata$active.ident),signal)
     }
-    data <- select(obj@coldata,ident,feature) %>%
-      rename(source = ident,counts= feature) %>%
+    data <- select(obj@coldata,active.ident,feature) %>%
+      rename(source = active.ident,counts= feature) %>%
       filter(source %in% c(signal,background)) %>%
       mutate(source = as.character(source))
     data$splitsource <- data$source
@@ -143,7 +144,7 @@ setMethod("brtVlnPlot", "brtStarter", function(obj,
   } else
     colordata <- feature
   coldata %>%
-    select(ident, feature) %>%
+    select(active.ident, feature) %>%
     rename(data = feature) -> coldata
   # title
   if (is.na(title) & class(feature) == 'character')
@@ -172,9 +173,9 @@ setMethod("brtVlnPlot", "data.frame", function(obj,
                                                color = color,
                                                ...) {
   coldata <- obj
-  coldata$ax1 <- coldata$ident
+  coldata$ax1 <- coldata$active.ident
   coldata$ax2 <- coldata$data
-  if (color) plot_map <- ggplot(data = coldata, aes(ax1, ax2,fill = ident))
+  if (color) plot_map <- ggplot(data = coldata, aes(ax1, ax2,fill = active.ident))
   else plot_map <- ggplot(data = coldata, aes(ax1, ax2))
   plot_vln <- geom_violin()
   plot_jitter <- geom_jitter(size = size, alpha = alpha,color = "black")
@@ -194,3 +195,40 @@ setMethod("brtVlnPlot", "data.frame", function(obj,
     plotfinal <- plotfinal + plot_log
   return(plotfinal)
 })
+
+# heatmap =====
+
+brtHeatmapScInput <- function(obj,assay = "raw", focus = "data"){
+  x <- obj@bulk
+  checkBcInputParams(x,assay = assay,focus = focus)
+  data <- as.matrix(x@assays[[assay]]@data[[focus]])
+  # ann data.frame
+  if (assay == "raw") {
+    coldata <- x@assays[[assay]]@coldata
+    coldata <- left_update(coldata, brtParams$regions, by = "subregion")
+    ci.color <- unique(coldata$CI_color)
+    names(ci.color) <- unique(coldata$CI)
+    region.color <- unique(coldata$main_region_color)
+    names(region.color) <- unique(coldata$main_region)
+    ann.top <- HeatmapAnnotation(
+      CI = coldata$CI,
+      Region = coldata$main_region,
+      col = list(CI = ci.color,
+                 Region = region.color)
+    )
+    hm.split <- factor(coldata$bin_region,
+                       levels = unique(coldata$bin_region))
+  } else {
+    ann.top <- NULL
+    hm.split <- NULL
+  }
+  # control split
+  # main
+  Heatmap(data,
+          top_annotation = ann.top,
+          cluster_columns = F,
+          show_row_names = F,
+          column_split = hm.split,
+          name = focus,
+          column_title = NULL)
+}

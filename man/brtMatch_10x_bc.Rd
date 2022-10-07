@@ -18,7 +18,8 @@ brtMatch_10x_bc(
   ncore = 1,
   rvBarcode_reference = NULL,
   cell_reference = NULL,
-  total = NULL
+  total = NULL,
+  return_raw = FALSE
 )
 }
 \arguments{

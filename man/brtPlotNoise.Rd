@@ -13,7 +13,7 @@ brtPlotNoise(
 )
 }
 \arguments{
-\item{obj}{an brtstarter object, the idents of coldata should contain Neurons
+\item{obj}{an brtstarter object, the active.idents of coldata should contain Neurons
 and at least one non-neuronal ident.}
 
 \item{feature}{bc or a name of numeric column of coldata. bc will override bc

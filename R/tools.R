@@ -60,7 +60,46 @@ function(obj, subset, ...) {
   obj@coldata <- obj@coldata[r,]
   obj
 })
-
+setMethod("subsetCol",
+          signature(obj = "bcInputome"),
+  function(obj, subset,...) {
+    assay <- obj@assays[[obj@active_assay]]
+    assay <- subsetCol.brtdata(assay,substitute(subset))
+    obj@assays[[obj@active_assay]] <- assay
+    obj
+  })
+setMethod("subsetCol",
+          signature(obj = "inputData"),
+  function(obj, subset,...) {
+    browser()
+    x <- obj@coldata
+    r <- if (missing(subset))
+      rep_len(TRUE, nrow(x))
+    else {
+      e <- substitute(subset)
+      r <- eval(e, x, parent.frame())
+      if (!is.logical(r))
+        stop("'subset' must be logical")
+      r & !is.na(r)
+    }
+    obj@data <- purrr::map(obj@data,  ~ .x[, r])
+    obj@coldata <- obj@coldata[r,]
+    obj
+  })
+subsetCol.brtdata <- function(obj, condition, ...) {
+  x <- obj@coldata
+  r <- if (missing(condition))
+    rep_len(TRUE, nrow(x))
+  else {
+    r <- eval(condition, x, parent.frame())
+    if (!is.logical(r))
+      stop("'subset' must be logical")
+    r & !is.na(r)
+  }
+  obj@data <- purrr::map(obj@data,  ~ .x[, r])
+  obj@coldata <- obj@coldata[r, ]
+  obj
+}
 # ======================== Matrix =============================================
 .sortMatrix <- function(x, by) {
   if (by == "row") {
