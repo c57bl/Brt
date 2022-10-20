@@ -112,3 +112,48 @@ subsetCol.brtdata <- function(obj, condition, ...) {
     x <- x[, idx$ix]
   }
 }
+
+df2mat <- function(x,key,value,rowname) {
+  if (! "data.frame" %in%  class(x))
+    stop("input should be a data.frame")
+  x %>%
+    ungroup %>%
+    tidyr::spread(key = key,value = value,fill = 0) %>%
+    tibble::column_to_rownames(rowname) %>%
+    as.matrix()
+}
+
+mat2df <- function(x,rowname.var,colname.var,value.var) {
+  x.df <- x %>%
+    as.data.frame() %>%
+    tibble::rownames_to_column(var = "rowname") %>%
+    tidyr::gather(key = colname,value = value,-rowname)
+  idx <- which(colnames(x.df) == "rowname")
+  colnames(x.df)[idx] <- rowname.var
+  idx <- which(colnames(x.df) == "colname")
+  colnames(x.df)[idx] <- colname.var
+  idx <- which(colnames(x.df) == "value")
+  colnames(x.df)[idx] <- value.var
+  x.df
+}
+
+shuffleMat <- function(data) {
+  idx <- 1:length(data)
+  idx.new <- sample(idx,length(idx),replace = F)
+  data.new <- data[idx.new]
+  data.new <- matrix(data.new,
+                     nrow = nrow(data),
+                     ncol = ncol(data))
+  dimnames(data.new) <- dimnames(data)
+  data.new
+}
+
+shuffleMat_col <- function(data) {
+  data.new <- apply(data,2,function(x){
+    idx <- 1:length(x)
+    idx.new <- sample(idx,length(idx),replace = F)
+    x[idx.new]
+  })
+  dimnames(data.new) <- dimnames(data)
+  data.new
+}

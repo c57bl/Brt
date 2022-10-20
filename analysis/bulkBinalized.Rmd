@@ -1,0 +1,100 @@
+---
+title: "build binarized"
+output: html_notebook
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r library, include=FALSE}
+roxygen2::roxygenise(here::here())
+library(patchwork)
+```
+
+```{r}
+samples <- c("brt8","brt10","brt11","brt12","brt13","brt14","brt15","brt16")
+```
+
+```{r}
+starters <- purrr::map(samples,~readRDS(here::here(paste0("testdata/",.x,"/v2/starterobj.rds"))))
+inputs <- purrr::map(samples,~readRDS(here::here(paste0("testdata/",.x,"/v2/inputobj.rds"))))
+```
+
+
+```{r}
+# starters <- purrr::map(starters,~subsetCol(.x,subclass == "Neurons"))
+unityobj <- brtUnity(starter = starters,bulk = inputs)
+unityobj
+```
+
+```{r}
+unityobj <- brtMergeRegion(unityobj,target = "bin_region")
+```
+
+```{r}
+unityobj <- brtNormalizeInput(unityobj,method = "proportion",assay = "bin_region",focus = "data")
+unityobj <- brtNormalizeInput(unityobj,method = "bin",assay = "bin_region",focus = "data",cutoff = 0.1)
+```
+
+```{r}
+unityobj@bulk@assays$bin_region@data$data_bin %>%
+  as.matrix() %>%
+  ComplexHeatmap::Heatmap(cluster_columns = F,show_row_names = F,col = circlize::colorRamp2(c(0,1),c("gray","black")),use_raster = F)
+```
+
+```{r}
+data.bin <- unityobj@bulk@assays$bin_region@data$data_bin
+data.bin %>%
+  rowSums() %>%
+  table %>%
+  as.data.frame() %>%
+  rename("Input regions" = ".") %>%
+  mutate(Proportion = Freq / sum(Freq)) %>%
+  mutate(label = paste0("%", round(100 * Proportion, 1))) %>%
+  ggplot(aes(`Input regions`, Proportion, label = label)) +
+  geom_col() +
+  ylim(c(0, 0.4)) +
+  geom_text(vjust = -1) +
+  theme_classic()
+  
+```
+
+```{r}
+ data.bin %>% 
+  colSums() %>% 
+  as.data.frame() %>%
+  tibble::rownames_to_column("Region") %>%
+  mutate(Proportion = `.` / nrow(data.bin)) %>%
+  arrange(desc(Proportion)) %>%
+  mutate(Region = factor(Region,levels = Region)) %>%
+  mutate(label = paste0("%",round(100*Proportion,1))) %>%
+  ggplot(aes(`Region`,Proportion,label = label)) + 
+  geom_col() + 
+  ylim(c(0,0.8)) + 
+  geom_text(vjust = -1)  + 
+  theme_classic()
+```
+
+```{r}
+unityobj.cp <- brtBinScInput.cp(unityobj,assay = "bin_region",focus = "data_bin",R = 1000)
+```
+
+```{r}
+unityobj.cp$plot
+```
+
+```{r}
+unityobj.bulk.bino <- brtBinScInput.binor(unityobj,assay = "bin_region",focus = "data_bin",n = 2:4,p.equal = F,upset.threshold = 0.1,exclude = F)
+```
+
+```{r}
+unityobj.bulk.bino$plot.upset
+```
+```{r}
+unityobj.bulk.bino$plot.vol
+```
+```{r fig.height=12, fig.width=10}
+cowplot::plot_grid(plotlist = unityobj.bulk.bino$plot.line,ncol = 2)
+```
+
+

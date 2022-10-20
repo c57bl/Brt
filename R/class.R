@@ -224,11 +224,16 @@ setMethod("show","bcInputome",function(object){
   })
   cat("active assay: ", object@active_assay)
 })
+setClass("brtCluster",
+         slots = c(dist = 'list',
+                   objs = 'list',
+                   reduction = "list"))
 #' The scInputome class
 #' @description a part of brtunity obj, the rowdata is shared with parent
 #' rowdata
 setClass("scInputome",
-         contains = "bcInputome")
+         contains = "bcInputome",
+         slots = c(clusters = "brtCluster"))
 scInputome <- function(data,rowdata,coldata){
   idx.row <- match(rownames(data),rowdata$name)
   rowdata<- rowdata[idx.row,]
@@ -264,7 +269,8 @@ brtUnity <- function(starter = list, sc = NULL, bulk = NULL){
   bcmaps <- purrr::map(starter,function(x){
     filter(x@rowdata,unique.bc == TRUE) %>%
       select(bc,cell) %>%
-      arrange(cell)
+      arrange(cell) %>%
+      filter(cell %in% x@coldata$name)
   })
   names(bcmaps) <- samples
   names(starter) <- samples
@@ -334,9 +340,10 @@ brtUnity <- function(starter = list, sc = NULL, bulk = NULL){
     rowdatas <- purrr::map2(starter,data,function(x,y){
       idx <- match(rownames(y),x@coldata$name)
       y.rowdata <- x@coldata[idx,]
-      y.rowdata <- select(y.rowdata,name,cell)
+      y.rowdata <- select(y.rowdata,name)
     }) %>%
       do.call(rbind,.)
+    rownames(rowdatas) <- NULL
     data <- do.call(rbind,data)
     coldata <- data.frame(subregion = colnames(data),
                           rvcounts.adj = colSums(data))
@@ -402,5 +409,4 @@ newObjFromMerged <- function(counts,obj){
       rowdata = rowdata,
       coldata = coldata)
 }
-
 

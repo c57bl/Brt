@@ -50,6 +50,7 @@ getNoiseFeature <- function(obj,feature,background = NULL, threshold = 3,
     data$source[data$source != signal] <- "Background"
     counts.n <- subset(data, source == signal)$counts
     counts.nn <- subset(data, source == "Background")$counts
+    counts.nn <- counts.nn[counts.nn > 0]
     cutoff <- median(counts.nn) + threshold * IQR (counts.nn)
     result <- list(cutoff = cutoff,
                    data = data)
@@ -198,7 +199,9 @@ setMethod("brtVlnPlot", "data.frame", function(obj,
 
 # heatmap =====
 
-brtHeatmapScInput <- function(obj,assay = "raw", focus = "data"){
+brtHeatmapScInput <- function(obj,assay = "raw", focus = "data",
+                              input.cluster = NULL,col = NULL,
+                              row_title_size = NULL,raster = FALSE){
   x <- obj@bulk
   checkBcInputParams(x,assay = assay,focus = focus)
   data <- as.matrix(x@assays[[assay]]@data[[focus]])
@@ -222,6 +225,15 @@ brtHeatmapScInput <- function(obj,assay = "raw", focus = "data"){
     ann.top <- NULL
     hm.split <- NULL
   }
+  if (is.null(input.cluster)){
+    hm.row.split <- NULL
+  } else {
+    hm.row.split <- obj@bulk@rowdata[[input.cluster]]
+  }
+  # control color
+  if (!is.null(col)) {
+    col <- circlize::colorRamp2(col,colors = c("blue","white","red"))
+  }
   # control split
   # main
   Heatmap(data,
@@ -230,5 +242,12 @@ brtHeatmapScInput <- function(obj,assay = "raw", focus = "data"){
           show_row_names = F,
           column_split = hm.split,
           name = focus,
-          column_title = NULL)
+          row_split = hm.row.split,
+          column_names_rot = 90,
+          col = col,
+          row_title_rot = 0,
+          row_title_gp = grid::gpar(fontsize = row_title_size),
+          column_title = NULL,
+          use_raster = raster,
+          raster_by_magick = T)
 }

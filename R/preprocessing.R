@@ -384,13 +384,24 @@ brtRemoveBcInputNoise <- function(obj,assay = "raw") {
 }
 
 # normalize input----
-brtNormalizeData <- function(x,method){
+brtNormalizeData <- function(x, method, cutoff) {
   if (method == "proportion") {
     x <- x / rowSums(x)
   } else if (method == "scale") {
     x <- t(as.matrix(x))
     x <- t(scale(x))
-  } else {
+  } else if (method == "bin") {
+    x <- x / apply(x, 1, max)
+    x[x < cutoff | x == cutoff] <- 0
+    x[x > cutoff] <- 1
+  }
+  else if (method == "log") {
+    x.rowsum <- rowSums(x)
+    x <- x / x.rowsum * max(x.rowsum)
+    x <- log1p(x)
+  }
+
+  else  {
     stop("invalid method")
   }
   x
@@ -404,10 +415,10 @@ brtNormalizeInput.bcInputome <- function(obj,method,assay,focus) {
   obj
 }
 
-brtNormalizeInput.brtUnity <- function(obj,method,assay,focus) {
+brtNormalizeInput.brtUnity <- function(obj,method,assay,focus,cutoff) {
   checkBcInputParams(obj@bulk,assay,focus)
   data <-  obj@bulk@assays[[assay]]@data[[focus]]
-  data <- brtNormalizeData(x = data,method = method)
+  data <- brtNormalizeData(x = data,method = method,cutoff = cutoff)
   obj@bulk@assays[[assay]]@data[[paste0(focus,"_",method)]] <- data
   obj
 }

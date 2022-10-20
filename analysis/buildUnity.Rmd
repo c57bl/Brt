@@ -1,0 +1,138 @@
+---
+title: "build unity"
+output: html_notebook
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r library, include=FALSE}
+roxygen2::roxygenise(here::here())
+library(patchwork)
+```
+
+```{r}
+samples <- c("brt8","brt10","brt11","brt12","brt13","brt14","brt15","brt16")
+```
+
+```{r}
+starters <- purrr::map(samples,~readRDS(here::here(paste0("testdata/",.x,"/v2/starterobj.rds"))))
+inputs <- purrr::map(samples,~readRDS(here::here(paste0("testdata/",.x,"/v2/inputobj.rds"))))
+starters <- purrr::map(starters,~subsetCol(.x,subclass == "Neurons"))
+```
+
+
+```{r}
+unityobj <- brtUnity(starter = starters,bulk = inputs)
+unityobj
+```
+
+```{r}
+unityobj <- brtMergeRegion(unityobj,target = "bin_region")
+```
+
+```{r}
+unityobj <- brtNormalizeInput(unityobj,method = "log",assay = "bin_region")
+unityobj <- brtNormalizeInput(unityobj,method = "proportion",assay = "bin_region")
+unityobj <- brtNormalizeInput(unityobj,method = "scale",assay = "bin_region")
+unityobj <- brtNormalizeInput(unityobj,method = "scale",assay = "bin_region",focus = "data_log")
+unityobj <- brtNormalizeInput(unityobj,method = "bin",assay = "bin_region",focus = "data",cutoff = 0.1)
+```
+
+```{r}
+brtHeatmapScInput(unityobj,assay = "bin_region",focus = "data_proportion")
+```
+
+```{r}
+unityobj <- brtDistScInput(unityobj,assay = "bin_region",focus = "data_scale",method = "cosin")
+```
+
+```{r}
+unityobj <- brtClusterScInput(unityobj,"bin_region.data_scale.cosin",k =30 ,n = 1000,method = "cutree")
+```
+
+```{r}
+unityobj <- brtClusterScInput.active(unityobj,active.ident = "bin_region.data_scale.cosin.cutree.30")
+```
+
+```{r}
+brtClusterScInput.splitPlot(unityobj,splitby = "ctype",type = "line",assay = "bin_region",focus = "data_proportion") -> plot.line
+```
+
+```{r}
+newname <- levels(unityobj@bulk@rowdata$ctype)
+# names(newname) <- c("TH","ACA","ACA+TH","ACA+TH","CA1",
+#                     "ORB","PL/ILA_C","PL/ILA_C","CA1+TH","ORB",
+#                     "ACA+CA1","PL/ILA","ACA+ACA_C","CLA","ACA_C+TH",
+#                     "PL/ILA_C+TH","RSPagl","PL/ILA","PL/ILA","CLA",
+#                     "BLA","ACA+PL/ILA_C","AIV","RSPv","BLA",
+#                     "NDB","ORB","CLA","Unknown","Unknown"
+#                     )
+names(newname) <- c("TH","ACA+TH","ACA","CA1","ACA+TH",
+                    "PL/ILA_C","ORB","PL/ILA_C+TH","CA1+TH","ORB+TH",
+                    "CA1+ACA","PL/ILA+ACA+TH","ACA+ACA_C","CLA","ACA_C",
+                    "ACA+PL/ILA","PL/ILA","CLA+TH","BLAa+TH","ACA+PL/ILA_C",
+                    "Others","RSPagl","NDB","Others","RSPagl+TH",
+                    "RSPv","BLAa","ACA+CLA","Others","Others")
+```
+
+```{r}
+unityobj <- brtClusterScInput.rename(unityobj,newname)
+```
+
+
+```{r}
+unityobj <- brtClusterScInput.pull(unityobj,name = "celltype")
+```
+
+```{r}
+unityobj <- brtClusterScInput.tsne(unityobj,assay = "bin_region",focus = "data_scale")
+```
+
+```{r fig.height=5, fig.width=6}
+brtClusterScInput.plot(unityobj,focus = "ctype",reduction = "bin_region.data_scale.tsne")
+```
+```{r}
+unityobj@bulk@clusters@dist$bin_region.data_scale.cosin %>%
+  Heatmap(
+    show_row_names = F,
+    show_column_names = F,
+    column_split = unityobj@bulk@rowdata$ctype,
+    row_split = unityobj@bulk@rowdata$ctype,
+    row_gap = unit(0.4, "mm"),
+    column_gap = unit(0.4, "mm"),
+    show_row_dend = F,
+    show_column_dend = F,
+    column_title_rot = 90,
+    row_title_rot = 90,
+    name = "Cosin Distance",
+    use_raster = T,
+    col = circlize::colorRamp2(c(0,0.5,1),colors = c("red","white","blue"))
+  )
+```
+
+```{r fig.height=8, fig.width=6}
+brtHeatmapScInput(unityobj,assay = "bin_region",focus = "data_proportion",input.cluster = "ctype",row_title_size = 10)
+```
+```{r fig.height=5, fig.width=7}
+unityobj.bino <- brtClusterScInput.binomial(unityobj,val1 = "celltype","ctype")
+unityobj.bino$plot
+```
+
+```{r fig.height=8, fig.width=6}
+brtHeatmapScInput(unityobj,assay = "bin_region",focus = "data_proportion",input.cluster = "celltype",row_title_size = 10)
+```
+```{r}
+input.merge <- brtMergeCell.scInput(unityobj,var = "celltype",assay = "bin_region",focus = "data_bin")
+input.merge.proportion <- lapply(1:length(input.merge$group.n), function(i){
+  input.merge$merge.data[i,] / input.merge$group.n[i]
+}) %>%
+  do.call(rbind,.)
+rownames(input.merge.proportion) <- rownames(input.merge$merge.data)
+Heatmap(input.merge.proportion,
+        cluster_rows = F,
+        cluster_columns = F,
+        row_names_side = "left",
+        name = "Proportion")
+```
+

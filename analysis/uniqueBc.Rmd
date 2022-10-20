@@ -1,0 +1,131 @@
+---
+title: "unique bc"
+author: "tk"
+date: '2022-10-14'
+output: html_document
+---
+
+```{r library, include=FALSE}
+roxygen2::roxygenise(here::here())
+library(patchwork)
+```
+
+```{r}
+samples <- c("brt8","brt11","brt12","brt13","brt14","brt15","brt16")
+```
+
+```{r}
+starters <- purrr::map(samples,~readRDS(here::here(paste0("testdata/",.x,"/starterobj.rds"))))
+names(starters) <- samples
+```
+
+```{r}
+unique.bcs <- lapply(starters,function(x){
+  idx <- which(x@rowdata$unique.bc)
+  bc <- x@rowdata$bc[idx]
+  bc <- stringr::str_split(bc,"_",simplify = T)[,2]
+  data.frame(sample = x@coldata$sample[1],bc = bc,row.names = NULL)
+}) %>%
+  do.call(rbind,.)
+unique.bcs$sample <- factor(unique.bcs$sample,levels = samples)
+```
+
+
+```{r}
+bc.mat <- unique.bcs %>%
+  mutate(counts = 1) %>%
+  tidyr::spread("sample", "counts", fill = 0) 
+rownames(bc.mat) <- bc.mat$bc
+bc.mat <- as.matrix(bc.mat[,-1])
+bc.mat <- bc.mat[,match(samples,colnames(bc.mat))]
+```
+
+```{r}
+bc.mat.test <- countRowCombine(bc.mat,n = 2)
+```
+
+```{r}
+bc.mat.test %>%
+  mutate(combine = factor(combine,levels = bc.mat.test$combine)) %>%
+  ggplot(aes(
+    combine,
+    counts,
+    label = counts
+  )) +
+  geom_col(position = position_dodge2(width = 1)) +
+  geom_text(position = position_dodge2(width = 1), vjust = -0.2) +
+  theme_classic() + 
+  theme(axis.text.x = element_text(angle = 270))
+```
+
+```{r }
+bc.combine <- data.frame(t(combn(samples, 2)))
+colnames(bc.combine) <- c("sample1", "sample2")
+bc.sample.counts <- countRowCombine(bc.mat, n = 1)
+# update sample counts
+bc.combine <- left_join(bc.combine,
+                             rename(
+                               bc.sample.counts,
+                               sample1 = combine,
+                               sample1.counts = counts
+                             ),by = "sample1")
+
+bc.combine <- left_join(bc.combine,
+                             rename(
+                               bc.sample.counts,
+                               sample2 = combine,
+                               sample2.counts = counts
+                             ),by = "sample2")
+# update combine counts
+bc.combine <- bc.combine %>%
+  mutate(combine = paste(sample1, sample2, sep = "+")) %>%
+  left_join(bc.mat.test, by = "combine")
+```
+
+```{r}
+domodel <- function(sample1.counts,sample2.counts,counts,combine) {
+  n.rep <- round((sample1.counts + sample2.counts) * 0.05)
+  n.total <- (sample1.counts + sample2.counts) * 1.05
+  p <- (sample1.counts / n.total) * (sample2.counts / n.total) * 2
+  result <- qbinom(c(0.025,0.975),size = n.rep,prob = p)
+  data.frame(combine = combine,
+             observe = counts,
+             left = result[1],
+             right = result[2],
+             estimate = round(n.rep*p))
+}
+```
+
+```{r}
+bc.combine.test <- purrr::pmap(select(bc.combine,-sample1,-sample2),domodel) %>%
+  do.call(rbind,.)
+rownames(bc.combine.test) <- NULL
+```
+
+```{r}
+bc.mat.plot <- bc.mat.test %>%
+  left_join(bc.combine.test, by = "combine") %>%
+  tidyr::gather("group", "number", counts, estimate)
+bc.mat.plot$left[bc.mat.plot$group == "counts"] <- NaN
+bc.mat.plot$right[bc.mat.plot$group == "counts"] <- NaN
+bc.mat.plot %>%
+  mutate(combine = factor(combine, levels = bc.mat.test$combine)) %>%
+  mutate(combine = stringr::str_split(combine, stringr::fixed("+"))) %>%
+  ggplot(aes(
+    combine,
+    number,
+    label = number,
+    group = group,
+    fill = group
+  )) +
+  geom_col(position = position_dodge2(width = 1), alpha = 0.8) +
+  geom_errorbar(aes(ymin = left, ymax = right),
+                position = position_dodge(0.9),
+                width = 0.3) +
+  ggupset::scale_x_mergelist(sep = "&") +
+  ggupset::axis_combmatrix(sep = "&") +
+  scale_fill_manual(values = c("red", "gray")) +
+  theme_classic() 
+  # adjust 12,14,16
+```
+

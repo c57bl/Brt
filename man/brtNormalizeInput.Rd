@@ -4,7 +4,7 @@
 \alias{brtNormalizeInput}
 \title{brtNormalizeInput}
 \usage{
-brtNormalizeInput(obj, method, assay = "raw", focus = "data")
+brtNormalizeInput(obj, method, assay = "raw", focus = "data", cutoff = 0)
 }
 \arguments{
 \item{obj}{an bcinputome/brtunity obj}

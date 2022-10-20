@@ -57,6 +57,6 @@ setGeneric("brtSetNoiseBc",
 #' 2. scale, center and scale data by calling base::scale
 setGeneric("brtNormalizeInput",
            function(obj,method,assay = "raw",
-                    focus = "data")
+                    focus = "data",cutoff = 0)
              standardGeneric("brtNormalizeInput"))
 

@@ -13,7 +13,7 @@ index <- read.csv('data/indexs.csv')
 index.roi = 16:23
 umi_pattern = 'NNNNNNNNNNNNNNNNNNNNNNNCTCGACTGAAAAGCT'
 umi.roi = 1:15
-regions <- read.csv("data/regions.csv")
+regions <- read.csv("data/regionsV2.csv")
 
 neuron.subclass <- c("Car3","L2/3 IT ","L4/5 IT ","L5 IT ","L5 PT ",
                         "L5/6 NP ","L6 CT ","L6 IT ","L6b ","Lamp5",
